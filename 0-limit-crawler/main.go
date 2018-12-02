@@ -12,11 +12,15 @@ package main
 import (
 	"fmt"
 	"sync"
+	"time"
 )
+
+var limiter <-chan time.Time
 
 // Crawl uses `fetcher` from the `mockfetcher.go` file to imitate a
 // real crawler. It crawls until the maximum depth has reached.
 func Crawl(url string, depth int, wg *sync.WaitGroup) {
+	<-limiter
 	defer wg.Done()
 
 	if depth <= 0 {
@@ -41,8 +45,8 @@ func Crawl(url string, depth int, wg *sync.WaitGroup) {
 }
 
 func main() {
+	limiter = time.Tick(time.Second)
 	var wg sync.WaitGroup
-
 	wg.Add(1)
 	Crawl("http://golang.org/", 4, &wg)
 	wg.Wait()
