@@ -13,9 +13,32 @@
 
 package main
 
+import (
+	"fmt"
+	"os"
+	"os/signal"
+	"sync/atomic"
+)
+
+var callCount int64 = 0
+
 func main() {
 	// Create a process
 	proc := MockProcess{}
+
+	gracefulStop := make(chan os.Signal, 1)
+	signal.Notify(gracefulStop, os.Interrupt)
+	go func() {
+		for range gracefulStop {
+			fmt.Println(atomic.LoadInt64(&callCount))
+			if atomic.LoadInt64(&callCount) == 0 {
+				go proc.Stop()
+				atomic.AddInt64(&callCount, 1)
+			} else {
+				os.Exit(0)
+			}
+		}
+	}()
 
 	// Run the process (blocking)
 	proc.Run()
