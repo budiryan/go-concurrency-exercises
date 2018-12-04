@@ -20,13 +20,18 @@ package main
 import (
 	"errors"
 	"log"
+	"sync"
 	"time"
 )
+
+const CleanCachePeriodSeconds = 1
+var ticker = time.Tick(CleanCachePeriodSeconds * time.Second)
 
 // SessionManager keeps track of all sessions from creation, updating
 // to destroying.
 type SessionManager struct {
 	sessions map[string]Session
+	mutex    sync.Mutex
 }
 
 // Session stores the session's data
@@ -46,6 +51,8 @@ func NewSessionManager() *SessionManager {
 
 // CreateSession creates a new session and returns the sessionID
 func (m *SessionManager) CreateSession() (string, error) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 	sessionID, err := MakeSessionID()
 	if err != nil {
 		return "", err
@@ -69,6 +76,8 @@ var ErrSessionNotFound = errors.New("SessionID does not exists")
 // GetSessionData returns data related to session if sessionID is
 // found, errors otherwise
 func (m *SessionManager) GetSessionData(sessionID string) (map[string]interface{}, error) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 	session, ok := m.sessions[sessionID]
 	if !ok {
 		return nil, ErrSessionNotFound
@@ -78,6 +87,8 @@ func (m *SessionManager) GetSessionData(sessionID string) (map[string]interface{
 
 // UpdateSessionData overwrites the old session data with the new one
 func (m *SessionManager) UpdateSessionData(sessionID string, data map[string]interface{}) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 	_, ok := m.sessions[sessionID]
 	if !ok {
 		return ErrSessionNotFound
@@ -92,16 +103,16 @@ func (m *SessionManager) UpdateSessionData(sessionID string, data map[string]int
 	return nil
 }
 
-var ticker = time.Tick(time.Second)
-
 func (m *SessionManager) SessionCleaner() {
 	for {
 		<-ticker
+		m.mutex.Lock()
 		for k, v := range m.sessions {
 			if time.Since(v.UpdatedAt) >= (5 * time.Second) {
 				delete(m.sessions, k)
 			}
 		}
+		m.mutex.Unlock()
 	}
 }
 
